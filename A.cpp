@@ -163,6 +163,26 @@ struct Room
         }
     }
 
+    // 既存の配線は無視してサーバーsから方向dに配線できるかどうかを返す
+    bool can_connect2(int s, int d)
+    {
+        if (cn>=K*100)
+            return false;
+
+        int p = SP[s];
+        while (true)
+        {
+            if (d==0 && p%N==N-1 ||
+                d==1 && p/N==N-1 ||
+                d==2 && p%N==0 ||
+                d==3 && p/N==0)
+                return false;
+            p += D[d];
+            if (RS[p]!=-1)
+                return true;
+        }
+    }
+
     void connect(int s, int d)
     {
         cn++;
@@ -238,6 +258,9 @@ int main()
     int best_score = score;
     vector<vector<int>> best_connects;
 
+    // 繋ぐために切断した配線
+    vector<int> CC;
+
     double temp_inv;
     int iter;
     for (iter=0; ; iter++)
@@ -260,14 +283,30 @@ int main()
             d = xor64()%4;
 
             if (room.SC[s][d] ||
-                room.can_connect(s, d))
+                room.can_connect2(s, d))
                 break;
         }
 
         if (room.SC[s][d])
             room.cut(s, d);
         else
+        {
+            CC.clear();
+            int p = room.SP[s];
+            while (true)
+            {
+                p += room.D[d];
+                if (room.RS[p]!=-1)
+                    break;
+                if (room.RC[p]!=-1)
+                {
+                    CC.push_back(room.RC[p]);
+                    room.cut(room.RC[p]/4, room.RC[p]%4);
+                }
+            }
+
             room.connect(s, d);
+        }
 
         int score2 = room.score();
 
@@ -288,7 +327,12 @@ int main()
             if (!room.SC[s][d])
                 room.connect(s, d);
             else
+            {
                 room.cut(s, d);
+
+                for (int c: CC)
+                    room.connect(c/4, c%4);
+            }
         }
     }
 
