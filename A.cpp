@@ -272,7 +272,7 @@ int main()
             if (time>1.0)
                 break;
             double temp = 10*(1.0-time);
-            temp_inv = 1./temp;
+            temp_inv = 4./temp;
         }
 
         int s = 0;
