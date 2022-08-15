@@ -248,7 +248,7 @@ int main()
             double time = chrono::duration_cast<chrono::nanoseconds>(now-start).count()*1e-9/TIME;
             if (time>1.0)
                 break;
-            double temp = 0.1*(1.0-time);
+            double temp = 10*(1.0-time);
             temp_inv = 1./temp;
         }
 
@@ -271,13 +271,9 @@ int main()
 
         int score2 = room.score();
 
-        double scoresq = sqrt(score);
-        double score2sq = sqrt(score2);
-        
-        if (score2>0 && (
-            score2sq>scoresq ||
+        if (score2>score ||
             //exp((score2-score)*temp_inv)*0x80000000>xor64())
-            my_exp((score2sq-scoresq)*temp_inv)>xor64()))
+            my_exp(-sqrt(score-score2)*temp_inv)>xor64())
         {
             score = score2;
 
