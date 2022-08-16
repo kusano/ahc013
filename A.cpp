@@ -55,13 +55,17 @@ struct Room
     vector<int> D;
     // サーバーの位置
     // 種類順に格納するので、/100で種類になる
+    vector<int> SPorg;
     vector<int> SP;
     // サーバーの各方向にケーブルがあるか
     vector<array<bool, 4>> SC;
+    // 移動したコンピューター数
+    int mn;
     // ケーブル数
     int cn;
     // 位置 → サーバー
     // -1はサーバー無し
+    vector<int> RSorg;
     vector<int> RS;
     // 位置 → ケーブル
     // サーバー*4+向き
@@ -77,6 +81,7 @@ struct Room
         , D(4)
         , SP(K*100)
         , SC(K*100)
+        , mn(0)
         , cn(0)
         , RS(N*N, -1)
         , RC(N*N, -1)
@@ -100,6 +105,9 @@ struct Room
                     KI[k]++;
                 }
             }
+
+        SPorg = SP;
+        RSorg = RS;
     }
 
     int score()
@@ -141,10 +149,86 @@ struct Room
             }
     }
 
-    // サーバーsから方向dに配線できるかどうかを返す
-    bool can_connect(int s, int d)
+    // 同じ種類のコンピューターが接続可能な配線数を返す
+    int score2()
     {
-        if (cn>=K*100)
+        int s = 0;
+        for (int y=0; y<N; y++)
+        {
+            int pk = -1;
+            for (int x=0; x<N; x++)
+                if (RS[y*N+x]!=-1)
+                {
+                    int k = RS[y*N+x]/100;
+                    if (k==pk)
+                        s++;
+                    pk = k;
+                }
+        }
+        for (int x=0; x<N; x++)
+        {
+            int pk = -1;
+            for (int y=0; y<N; y++)
+                if (RS[y*N+x]!=-1)
+                {
+                    int k = RS[y*N+x]/100;
+                    if (k==pk)
+                        s++;
+                    pk = k;
+                }
+        }
+        return s;
+    }
+
+    // サーバーsを初期位置から向きdに移動できるかを返す
+    // d=-1で初期位置に戻す
+    bool can_move(int s, int d, int Xmax)
+    {
+        if (d==-1)
+            return true;
+        if (mn>=Xmax)
+            return false;
+
+        int p = SPorg[s];
+        if (d==0 && p%N==N-1 ||
+            d==1 && p/N==N-1 ||
+            d==2 && p%N==0 ||
+            d==3 && p/N==0)
+            return false;
+
+        int p2 = p + (d==-1 ? 0 : D[d]);
+        if (RS[p2]!=-1 || RSorg[p2]!=-1)
+            return false;
+
+        return true;
+    }
+
+    // サーバーを移動する
+    void move(int s, int d)
+    {
+        if (SP[s]!=SPorg[s])
+            mn--;
+
+        RS[SP[s]] = -1;
+        SP[s] = SPorg[s] + (d==-1 ? 0 : D[d]);
+        RS[SP[s]] = s;
+
+        if (SP[s]!=SPorg[s])
+            mn++;
+    }
+
+    void get_moves(vector<vector<int>> *moves)
+    {
+        moves->clear();
+        for (int s=0; s<100*K; s++)
+            if (SP[s]!=SPorg[s])
+                moves->push_back({SPorg[s], SP[s]});
+    }
+
+    // サーバーsから方向dに配線できるかどうかを返す
+    bool can_connect(int s, int d, int Ymax)
+    {
+        if (cn>=Ymax)
             return false;
 
         int p = SP[s];
@@ -164,9 +248,9 @@ struct Room
     }
 
     // 既存の配線は無視してサーバーsから方向dに配線できるかどうかを返す
-    bool can_connect2(int s, int d)
+    bool can_connect2(int s, int d, int Ymax)
     {
-        if (cn>=K*100)
+        if (cn>=Ymax)
             return false;
 
         int p = SP[s];
@@ -247,11 +331,106 @@ int main()
     for (string &t: c)
         cin>>t;
 
+    cerr<<"N: "<<N<<endl;
+    cerr<<"K: "<<K<<endl;
+    cerr<<"100*K/N/N: "<<100.*K/N/N<<endl;
+
     system_clock::time_point start = system_clock::now();
 
     my_exp_init();
 
     Room room(N, K, c);
+
+    // 移動
+    int Xmax = 0;
+    switch (K)
+    {
+    case 2: Xmax = N-15; break;
+    case 3: Xmax = N+30; break;
+    case 4: Xmax = N+80; break;
+    case 5: Xmax = N+150; break;
+    default:
+        return 1;
+    }
+
+    int score2 = room.score2();
+    int best_score2 = score2;
+    vector<vector<int>> best_moves;
+
+    double temp_inv;
+    int iter;
+    if (Xmax>0)
+        for (iter=0; ; iter++)
+        {
+            if (iter%0x100==0)
+            {
+                system_clock::time_point now = system_clock::now();
+                double time = chrono::duration_cast<chrono::nanoseconds>(now-start).count()*1e-9/(TIME/10);
+                if (time>1.0)
+                    break;
+                double temp = 10*(1.0-time);
+                temp_inv = 1./temp;
+            }
+
+            int s = 0;
+            int d = 0;
+            while (true)
+            {
+                s = xor64()%(K*100);
+                if (room.SP[s]==room.SPorg[s])
+                    d = xor64()%4;
+                else
+                    d = -1;
+                if (room.can_move(s, d, Xmax))
+                    break;
+            }
+
+            int diff = room.SP[s]-room.SPorg[s];
+            int dold = 0;
+            if (diff==0) dold = -1;
+            else if (diff==1) dold = 0;
+            else if (diff==N) dold = 1;
+            else if (diff==-1) dold = 2;
+            else if (diff==-N) dold = 3;
+            else
+                return -1;
+
+            room.move(s, d);
+
+            int score22 = room.score2();
+
+            if (score22>score2 ||
+                //exp((score2-score)*temp_inv)*0x80000000>xor64())
+                my_exp((score22-score2)*temp_inv)>xor64())
+            {
+                score2 = score22;
+
+                if (score2>best_score2)
+                {
+                    best_score2 = score2;
+                    room.get_moves(&best_moves);
+                }
+            }
+            else
+                room.move(s, dold);
+        }
+
+    room.SP = room.SPorg;
+    room.RS = room.RSorg;
+    for (auto m: best_moves)
+    {
+        int s = room.RSorg[m[0]];
+        room.SP[s] = m[1];
+        room.RS[m[0]] = -1;
+        room.RS[m[1]] = s;
+    }
+
+    cerr<<"Iteration: "<<iter<<endl;
+    cerr<<"Score: "<<best_score2<<endl;
+    cerr<<"X/Xmax: "<<best_moves.size()<<"/"<<Xmax<<endl;
+
+    // 配線
+    int Ymax = 100*K - (int)best_moves.size();
 
     int score = room.score();
     
@@ -261,8 +440,6 @@ int main()
     // 繋ぐために切断した配線
     vector<int> CC;
 
-    double temp_inv;
-    int iter;
     for (iter=0; ; iter++)
     {
         if (iter%0x1000==0)
@@ -283,7 +460,7 @@ int main()
             d = xor64()%4;
 
             if (room.SC[s][d] ||
-                room.can_connect2(s, d))
+                room.can_connect2(s, d, Ymax))
                 break;
         }
 
@@ -338,9 +515,13 @@ int main()
 
     cerr<<"Iteration: "<<iter<<endl;
     cerr<<"Score: "<<best_score<<endl;
+    cerr<<"Y/Ymax: "<<best_connects.size()<<"/"<<Ymax<<endl;
+    cerr<<endl;
 
-    cout<<0<<endl;
+    cout<<best_moves.size()<<endl;
+    for (auto m: best_moves)
+        cout<<m[0]/N<<" "<<m[0]%N<<" "<<m[1]/N<<" "<<m[1]%N<<endl;
     cout<<best_connects.size()<<endl;
     for (auto c: best_connects)
-        cout<<c[0]/N<<" "<<c[0]%N<<" "<<c[1]/N<<" "<<c[1]%N<<endl;    
+        cout<<c[0]/N<<" "<<c[0]%N<<" "<<c[1]/N<<" "<<c[1]%N<<endl;
 }
