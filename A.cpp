@@ -161,7 +161,7 @@ struct Room
                 {
                     int k = RS[y*N+x]/100;
                     if (k==pk)
-                        s++;
+                        s += k==0?5:1;
                     pk = k;
                 }
         }
@@ -173,7 +173,7 @@ struct Room
                 {
                     int k = RS[y*N+x]/100;
                     if (k==pk)
-                        s++;
+                        s += k==0?5:1;
                     pk = k;
                 }
         }
@@ -448,8 +448,8 @@ int main()
             double time = chrono::duration_cast<chrono::nanoseconds>(now-start).count()*1e-9/TIME;
             if (time>1.0)
                 break;
-            double temp = 10*(1.0-time);
-            temp_inv = 4./temp;
+            double temp = 2.5*(1.0-time);
+            temp_inv = 1./temp;
         }
 
         int s = 0;
